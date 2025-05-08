@@ -23,6 +23,14 @@ type SignOptions struct {
 	OutFilePath              string
 	InFilePath               string
 	TimestampServers         []string
+	// Keyless signing options
+	Keyless         bool
+	IdToken         string
+	Intoto          bool
+	UseTsa          bool
+	UseRekor        bool
+	SignConfigPath  string
+	TrustedRootPath string
 }
 
 var RequiredSignFlags = []string{
@@ -37,6 +45,14 @@ func (so *SignOptions) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&so.OutFilePath, "outfile", "o", "", "File to write signed data. Defaults to stdout")
 	cmd.Flags().StringVarP(&so.InFilePath, "infile", "f", "", "Witness policy file to sign")
 	cmd.Flags().StringSliceVar(&so.TimestampServers, "timestamp-servers", []string{}, "Timestamp Authority Servers to use when signing envelope")
+
+	cmd.Flags().BoolVar(&so.Keyless, "keyless", false, "Use keyless signing with Sigstore")
+	cmd.Flags().StringVar(&so.IdToken, "id-token", "", "OIDC identity token for keyless signing")
+	cmd.Flags().BoolVar(&so.Intoto, "intoto", false, "Sign as in-toto attestation")
+	cmd.Flags().BoolVar(&so.UseTsa, "tsa", false, "Use timestamp authority during keyless signing")
+	cmd.Flags().BoolVar(&so.UseRekor, "rekor", true, "Use Rekor transparency log during keyless signing (defaults to true)")
+	cmd.Flags().StringVar(&so.SignConfigPath, "sign-config", "", "Path to the signing configuration file")
+	cmd.Flags().StringVar(&so.TrustedRootPath, "trusted-root", "", "Path to the trusted root file")
 
 	cmd.MarkFlagsRequiredTogether(RequiredSignFlags...)
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/in-toto/go-witness/dsse"
 	"github.com/in-toto/go-witness/log"
 	"github.com/in-toto/go-witness/timestamp"
+	"github.com/in-toto/witness/internal/sigstore"
 	"github.com/in-toto/witness/options"
 	"github.com/spf13/cobra"
 )
@@ -37,11 +38,14 @@ func SignCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "sign [file]",
 		Short:             "Signs a file",
-		Long:              "Signs a file with the provided key source and outputs the signed file to the specified destination",
+		Long:              "Signs a file with the provided key source or using keyless signing and outputs the signed file to the specified destination",
 		SilenceErrors:     true,
 		SilenceUsage:      true,
 		DisableAutoGenTag: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if so.Keyless {
+				return runSignKeyless(cmd.Context(), so)
+			}
 			signers, err := loadSigners(cmd.Context(), so.SignerOptions, so.KMSSignerProviderOptions, providersFromFlags("signer", cmd.Flags()))
 			if err != nil {
 				return fmt.Errorf("failed to load signer: %w", err)
@@ -53,6 +57,39 @@ func SignCmd() *cobra.Command {
 
 	so.AddFlags(cmd)
 	return cmd
+}
+
+// runSignKeyless performs keyless signing using sigstore-go
+func runSignKeyless(so options.SignOptions) error {
+	keylessSigner := sigstore.NewSignKeyless()
+	keylessSigner.IdToken = so.IdToken
+	keylessSigner.Intoto = so.Intoto
+	keylessSigner.Tsa = so.UseTsa
+	keylessSigner.Rekor = so.UseRekor
+	keylessSigner.SignConfigPath = so.SignConfigPath
+	keylessSigner.TrustedRootPath = so.TrustedRootPath
+
+	signedData, err := keylessSigner.Sign(so.InFilePath)
+	if err != nil {
+		return fmt.Errorf("keyless signing failed: %w", err)
+	}
+
+	outFile, err := loadOutfile(so.OutFilePath)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := outFile.Close(); err != nil {
+			log.Errorf("failed to write result to disk: %v", err)
+		}
+	}()
+
+	_, err = outFile.WriteString(signedData)
+	if err != nil {
+		return fmt.Errorf("failed to write signed data to output file: %w", err)
+	}
+
+	return nil
 }
 
 // todo: this logic should be broken out and moved to pkg/
